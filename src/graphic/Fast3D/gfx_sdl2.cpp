@@ -46,6 +46,10 @@
 #include <SDL_syswm.h>
 #endif
 
+#ifndef USER_DEFAULT_SCREEN_DPI
+#define USER_DEFAULT_SCREEN_DPI 96
+#endif
+
 #define GFX_BACKEND_NAME "SDL"
 
 static SDL_Window* wnd;
@@ -53,6 +57,7 @@ static SDL_GLContext ctx;
 static SDL_Renderer* renderer;
 static int sdl_to_lus_table[512];
 static bool vsync_enabled = true;
+static float dpi;
 // OTRTODO: These are redundant. Info can be queried from SDL.
 static int window_width = DESIRED_SCREEN_WIDTH;
 static int window_height = DESIRED_SCREEN_HEIGHT;
@@ -379,6 +384,11 @@ static void gfx_sdl_init(const char* game_name, const char* gfx_api_name, bool s
         posX = 100;
         posY = 100;
     }
+    if (SDL_GetDisplayDPI(display_in_use, &dpi, nullptr, nullptr) < 0) {
+        SPDLOG_WARN("Error detecting DPI, fallback to default");
+        dpi = USER_DEFAULT_SCREEN_DPI;
+    }
+    SPDLOG_INFO(dpi);
 
     if (use_opengl) {
 #ifndef __SWITCH__
@@ -527,20 +537,6 @@ static void gfx_sdl_handle_events(void) {
                 gfx_sdl_onkeyup(event.key.keysym.scancode);
                 break;
 #endif
-            case SDL_WINDOWEVENT:
-                if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
-#ifdef __SWITCH__
-                    LUS::Switch::GetDisplaySize(&window_width, &window_height);
-#else
-                    SDL_GL_GetDrawableSize(wnd, &window_width, &window_height);
-#endif
-                } else if (event.window.event == SDL_WINDOWEVENT_CLOSE &&
-                           event.window.windowID == SDL_GetWindowID(wnd)) {
-                    // We listen specifically for main window close because closing main window
-                    // on macOS does not trigger SDL_Quit.
-                    is_running = false;
-                }
-                break;
             case SDL_DROPFILE:
                 CVarSetString("gDroppedFile", event.drop.file);
                 CVarSetInteger("gNewFileDropped", 1);
@@ -549,6 +545,32 @@ static void gfx_sdl_handle_events(void) {
             case SDL_QUIT:
                 is_running = false;
                 break;
+            case SDL_WINDOWEVENT: {
+                if (event.window.windowID == SDL_GetWindowID(wnd)) {
+                    switch (event.window.event) {
+                        case SDL_WINDOWEVENT_SIZE_CHANGED:
+#ifdef __SWITCH__
+                            LUS::Switch::GetDisplaySize(&window_width, &window_height);
+#else
+                            SDL_GL_GetDrawableSize(wnd, &window_width, &window_height);
+#endif
+                            break;
+                        case SDL_WINDOWEVENT_CLOSE:
+                            // We listen specifically for main window close because closing main window
+                            // on macOS does not trigger SDL_Quit.
+                            is_running = false;
+                            break;
+                        case SDL_WINDOWEVENT_DISPLAY_CHANGED:
+                            int display_in_use = event.window.data1;
+                            if (!SDL_GetDisplayDPI(display_in_use, &dpi, nullptr, nullptr) < 0) {
+                                SPDLOG_WARN("Error detecting DPI, fallback to default");
+                                dpi = USER_DEFAULT_SCREEN_DPI;
+                            }
+                            SPDLOG_INFO(dpi);
+                            break;
+                    }
+                }
+            }
         }
     }
 }
@@ -629,6 +651,14 @@ bool gfx_sdl_can_disable_vsync() {
     return false;
 }
 
+int gfx_sdl_get_dpi() {
+    return dpi;
+}
+
+float gfx_sdl_get_dpi_scale() {
+    return (float)dpi / USER_DEFAULT_SCREEN_DPI;
+}
+
 struct GfxWindowManagerAPI gfx_sdl = { gfx_sdl_init,
                                        gfx_sdl_close,
                                        gfx_sdl_set_keyboard_callbacks,
@@ -646,6 +676,8 @@ struct GfxWindowManagerAPI gfx_sdl = { gfx_sdl_init,
                                        gfx_sdl_set_target_fps,
                                        gfx_sdl_set_maximum_frame_latency,
                                        gfx_sdl_get_key_name,
-                                       gfx_sdl_can_disable_vsync };
+                                       gfx_sdl_can_disable_vsync,
+                                       gfx_sdl_get_dpi,
+                                       gfx_sdl_get_dpi_scale };
 
 #endif
