@@ -306,7 +306,7 @@ static void gfx_sdl_init(const char* game_name, const char* gfx_api_name, bool s
                          uint32_t height, int32_t posX, int32_t posY) {
     window_width = width;
     window_height = height;
-
+    SDL_SetHint(SDL_HINT_WINDOWS_DPI_SCALING, "1");
     SDL_Init(SDL_INIT_VIDEO);
 
     SDL_EventState(SDL_DROPFILE, SDL_ENABLE);
