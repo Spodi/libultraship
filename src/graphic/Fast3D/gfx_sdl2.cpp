@@ -311,7 +311,9 @@ static void gfx_sdl_init(const char* game_name, const char* gfx_api_name, bool s
                          uint32_t height, int32_t posX, int32_t posY) {
     window_width = width;
     window_height = height;
+#ifdef _WIN32
     SDL_SetHint(SDL_HINT_WINDOWS_DPI_SCALING, "1");
+#endif
     SDL_Init(SDL_INIT_VIDEO);
 
     SDL_EventState(SDL_DROPFILE, SDL_ENABLE);
@@ -560,6 +562,7 @@ static void gfx_sdl_handle_events(void) {
                             // on macOS does not trigger SDL_Quit.
                             is_running = false;
                             break;
+#ifndef __SWITCH__
                         case SDL_WINDOWEVENT_DISPLAY_CHANGED:
                             int display_in_use = event.window.data1;
                             if (!SDL_GetDisplayDPI(display_in_use, &dpi, nullptr, nullptr) < 0) {
@@ -568,6 +571,7 @@ static void gfx_sdl_handle_events(void) {
                             }
                             SPDLOG_INFO(dpi);
                             break;
+#endif
                     }
                 }
             }
