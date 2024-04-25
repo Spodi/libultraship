@@ -111,6 +111,7 @@ static struct {
     ComPtr<ID3D11Buffer> depth_value_output_buffer;
     ComPtr<ID3D11Buffer> depth_value_output_buffer_copy;
     ComPtr<ID3D11UnorderedAccessView> depth_value_output_uav;
+    BOOL compute_shader_support;
     ComPtr<ID3D11ComputeShader> compute_shader;
     ComPtr<ID3D11ComputeShader> compute_shader_msaa;
     ComPtr<ID3DBlob> compute_shader_msaa_blob;
@@ -245,6 +246,18 @@ static void gfx_d3d11_init() {
             return true;
         }
     });
+
+    // Check compute shader support
+    if (d3d.feature_level < D3D_FEATURE_LEVEL_11_0) {
+        D3D11_FEATURE_DATA_D3D10_X_HARDWARE_OPTIONS hwopts = { 0 };
+        (void)d3d.device->CheckFeatureSupport(D3D11_FEATURE_D3D10_X_HARDWARE_OPTIONS, &hwopts, sizeof(hwopts));
+        if (!hwopts.ComputeShaders_Plus_RawAndStructuredBuffers_Via_Shader_4_x) {
+            d3d.compute_shader_support = false;
+            // ThrowIfFailed(E_FAIL, gfx_dxgi_get_h_wnd(), "Your hardware does not support compute shaders (4.x).")
+        } else {
+            d3d.compute_shader_support = true;
+        }
+    }
 
     // Create the swap chain
     gfx_dxgi_create_swap_chain(d3d.device.Get(), []() {
@@ -1180,14 +1193,19 @@ gfx_d3d11_get_pixel_depth(int fb_id, const std::set<std::pair<float, float>>& co
 
     D3D11_MAPPED_SUBRESOURCE ms;
 
-    if (fb.msaa_level > 1 && d3d.compute_shader_msaa.Get() == nullptr) {
-        ThrowIfFailed(d3d.device->CreateComputeShader(d3d.compute_shader_msaa_blob->GetBufferPointer(),
-                                                      d3d.compute_shader_msaa_blob->GetBufferSize(), nullptr,
-                                                      d3d.compute_shader_msaa.GetAddressOf()));
+    // Skip Compute Shaders if not supported.
+    if (d3d.compute_shader_support) {
+        if (fb.msaa_level > 1 && d3d.compute_shader_msaa.Get() == nullptr) {
+            ThrowIfFailed(d3d.device->CreateComputeShader(d3d.compute_shader_msaa_blob->GetBufferPointer(),
+                                                          d3d.compute_shader_msaa_blob->GetBufferSize(), nullptr,
+                                                          d3d.compute_shader_msaa.GetAddressOf()));
+        }
+
+        // ImGui overwrites these values, so we cannot set them once at init
+        d3d.context->CSSetShader(fb.msaa_level > 1 ? d3d.compute_shader_msaa.Get() : d3d.compute_shader.Get(), nullptr,
+                                 0);
     }
 
-    // ImGui overwrites these values, so we cannot set them once at init
-    d3d.context->CSSetShader(fb.msaa_level > 1 ? d3d.compute_shader_msaa.Get() : d3d.compute_shader.Get(), nullptr, 0);
     d3d.context->CSSetUnorderedAccessViews(0, 1, d3d.depth_value_output_uav.GetAddressOf(), nullptr);
 
     ThrowIfFailed(d3d.context->Map(d3d.coord_buffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &ms));
