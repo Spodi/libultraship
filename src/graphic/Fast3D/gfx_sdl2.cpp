@@ -633,9 +633,6 @@ static inline void sync_framerate_with_timer() {
     }
 
 #if defined(_WIN32) || defined(__APPLE__)
-    // Always flush the immediate context before forcing a CPU-wait, otherwise the GPU might only start
-    // working when the buffer is swapped.
-    glFlush();
     t = qpc_to_100ns(SDL_GetPerformanceCounter());
     while (t < next) {
 #ifdef _WIN32
