@@ -665,6 +665,7 @@ static uint64_t qpc_to_100ns(uint64_t qpc) {
 }
 
 static bool gfx_dxgi_is_frame_ready() {
+    return true;
     DXGI_FRAME_STATISTICS stats;
     if (dxgi.swap_chain->GetFrameStatistics(&stats) == S_OK &&
         (stats.SyncRefreshCount != 0 || stats.SyncQPCTime.QuadPart != 0ULL)) {
@@ -813,6 +814,7 @@ static bool gfx_dxgi_is_frame_ready() {
 
 static void gfx_dxgi_swap_buffers_begin() {
     LARGE_INTEGER t;
+    /*
     dxgi.use_timer = true;
     if (dxgi.use_timer || (dxgi.tearing_support && !dxgi.is_vsync_enabled)) {
         ComPtr<ID3D11Device> device;
@@ -847,6 +849,7 @@ static void gfx_dxgi_swap_buffers_begin() {
             t.QuadPart = qpc_to_100ns(t.QuadPart);
         }
     }
+    */
     QueryPerformanceCounter(&t);
     dxgi.previous_present_time = t;
     if (dxgi.tearing_support && !dxgi.length_in_vsync_frames) {
