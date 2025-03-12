@@ -731,16 +731,22 @@ static void gfx_dxgi_get_dimensions(uint32_t* width, uint32_t* height, int32_t* 
     *posY = dxgi.posY;
 }
 
-static void gfx_dxgi_handle_events() {
-    MSG msg;
-    while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
-        if (msg.message == WM_QUIT) {
-            dxgi.is_running = false;
-            break;
+static void gfx_dxgi_handle_events(bool waitable) {
+    if (waitable || dxgi.waitable_object == nullptr) {
+        MSG msg;
+        while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
+            if (msg.message == WM_QUIT) {
+                dxgi.is_running = false;
+                break;
+            }
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
         }
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
     }
+}
+
+static void gfx_dxgi_handle_events() {
+    gfx_dxgi_handle_events(false);
 }
 
 static uint64_t qpc_to_ns(uint64_t qpc) {
@@ -973,7 +979,22 @@ static void gfx_dxgi_swap_buffers_end() {
 
     if (!dxgi.dropped_frame) {
         if (dxgi.waitable_object != nullptr) {
-            WaitForSingleObject(dxgi.waitable_object, INFINITE);
+            DWORD ret;
+            do {
+                ret = MsgWaitForMultipleObjects(1, &dxgi.waitable_object, FALSE, INFINITE, QS_ALLINPUT);
+                switch (ret) {
+                    case WAIT_OBJECT_0:
+                        // event has been signalled
+                        break;
+                    case WAIT_OBJECT_0 + 1:
+                        // we have a message - peek and dispatch it
+                        gfx_dxgi_handle_events(true);
+                        break;
+                    default:
+                        SPDLOG_WARN("MsgWaitForMultipleObjects failed");
+                        return; // unexpected failure
+                }
+            } while (ret != WAIT_OBJECT_0);
         }
         // else TODO: maybe sleep until some estimated time the frame will be shown to reduce lag
     }
