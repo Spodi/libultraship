@@ -722,7 +722,7 @@ static bool gfx_dxgi_is_frame_ready() {
             // printf("Get frame stats: %llu\n", (unsigned long long)(t0.QuadPart - dxgi.qpc_init));
         }
         // printf("stats: %u %u %u %u %u %.6f\n", dxgi.pending_frame_stats.rbegin()->first,
-        // dxgi.pending_frame_stats.rbegin()->second, stats.PresentCount, stats.PresentRefreshCount,
+        // dxgi.pending_frame_stats.rbegin()->second, stats.PresentCount, stats.PresentReaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad asdas aasd asdas ads asd as daasdas da  asda sdas das dfreshCount,
         // stats.SyncRefreshCount, (double)(stats.SyncQPCTime.QuadPart - dxgi.qpc_init) / dxgi.qpc_freq);
         if (dxgi.frame_stats.empty() || dxgi.frame_stats.rbegin()->second.PresentCount != stats.PresentCount) {
             dxgi.frame_stats.insert(std::make_pair(stats.PresentCount, stats));
