@@ -1001,9 +1001,9 @@ void GfxWindowBackendDXGI::CreateFactoryAndDevice(bool debug, int d3d_version, c
     for (UINT i = 0; mFactory->EnumAdapters1(i, &adapter) != DXGI_ERROR_NOT_FOUND; i++) {
         DXGI_ADAPTER_DESC1 desc;
         adapter->GetDesc1(&desc);
-        if (desc.Flags & 2 /*DXGI_ADAPTER_FLAG_SOFTWARE*/) { // declaration missing in mingw headers
-            continue;
-        }
+        // if (desc.Flags & 2 /*DXGI_ADAPTER_FLAG_SOFTWARE*/) { // declaration missing in mingw headers
+        //     continue;
+        // }
         if (createFunc(self, adapter.Get(), true)) {
             break;
         }
@@ -1088,12 +1088,6 @@ void ThrowIfFailed(HRESULT res, HWND h_wnd, const char* message) {
         MessageBoxA(h_wnd, full_message, "Error", MB_OK | MB_ICONERROR);
         throw res;
     }
-}
-void ThrowWithMessage(HWND h_wnd, const char* message) {
-    char full_message[256];
-    sprintf(full_message, message);
-    MessageBoxA(h_wnd, full_message, "Error", MB_OK | MB_ICONERROR);
-    throw;
 }
 
 #endif

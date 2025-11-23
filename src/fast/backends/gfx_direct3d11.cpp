@@ -103,7 +103,8 @@ static bool CreateDeviceFunc(class GfxRenderingAPIDX11* self, IDXGIAdapter1* ada
 #else
     UINT device_creation_flags = 0;
 #endif
-    D3D_FEATURE_LEVEL FeatureLevels[] = { D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0 };
+    D3D_FEATURE_LEVEL FeatureLevels[] = { D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0,
+                                          D3D_FEATURE_LEVEL_9_3,  D3D_FEATURE_LEVEL_9_2,  D3D_FEATURE_LEVEL_9_1 };
 
     HRESULT res = self->mDX11CreateDevice(adapter,
                                           D3D_DRIVER_TYPE_UNKNOWN, // since we use a specific adapter
@@ -113,10 +114,47 @@ static bool CreateDeviceFunc(class GfxRenderingAPIDX11* self, IDXGIAdapter1* ada
 
     if (test_only) {
         return SUCCEEDED(res);
-    } else {
-        ThrowIfFailed(res, self->mWindowBackend->GetWindowHandle(), "Failed to create D3D11 device.");
-        return true;
     }
+
+    bool SoftwareFallback = false;
+    if (self->mFeatureLevel < D3D_FEATURE_LEVEL_10_0 && self->mFeatureLevel != NULL) {
+        MessageBoxA(self->mWindowBackend->GetWindowHandle(),
+                    "Your GPU needs to support at least D3D Feature Level 10_0 in order to run this program correctly.\n\n"
+                    "Falling back to Software (CPU) renderer! This will probalbly be unplayably slow.\n"
+                    "Please try selecting a different rendering API in the menu if available.",
+                    "Insufficient hardware support", MB_OK | MB_ICONWARNING);
+        SoftwareFallback = true;
+    } else {
+        // Check for Compute Shader support
+        D3D11_FEATURE_DATA_D3D10_X_HARDWARE_OPTIONS features;
+
+        self->mDevice->CheckFeatureSupport(D3D11_FEATURE_D3D10_X_HARDWARE_OPTIONS, &features,
+                                           sizeof(D3D11_FEATURE_DATA_D3D10_X_HARDWARE_OPTIONS));
+        if (features.ComputeShaders_Plus_RawAndStructuredBuffers_Via_Shader_4_x == false) {
+            MessageBoxA(self->mWindowBackend->GetWindowHandle(),
+                        "Your GPU needs to support at least compute shaders 4.0 in order to run this program correctly.\n\n"
+                        "Falling back to Software (CPU) renderer! This will probalbly be unplayably slow.\n"
+                        "Please try selecting a different rendering API in the menu if available.",
+                        "Insufficient hardware support", MB_OK | MB_ICONWARNING);
+            SoftwareFallback = true;
+        }
+    }
+
+    if (SoftwareFallback) {
+        if (self->mContext) {
+            self->mContext->Release();
+        }
+        if (self->mDevice) {
+            self->mDevice->Release();
+        }
+
+        res = self->mDX11CreateDevice(NULL, D3D_DRIVER_TYPE_WARP, nullptr, device_creation_flags, FeatureLevels,
+                                      ARRAYSIZE(FeatureLevels), D3D11_SDK_VERSION, self->mDevice.GetAddressOf(),
+                                      &self->mFeatureLevel, self->mContext.GetAddressOf());
+    }
+
+    ThrowIfFailed(res, self->mWindowBackend->GetWindowHandle(), "Failed to create D3D11 device.");
+    return true;
 };
 
 void GfxRenderingAPIDX11::Init() {
@@ -221,13 +259,6 @@ void GfxRenderingAPIDX11::Init() {
                   mWindowBackend->GetWindowHandle(), "Failed to create per-draw constant buffer.");
 
     // Create compute shader that can be used to retrieve depth buffer values
-    D3D11_FEATURE_DATA_D3D10_X_HARDWARE_OPTIONS features;
-    mDevice->CheckFeatureSupport(D3D11_FEATURE_D3D10_X_HARDWARE_OPTIONS, &features,
-                                 sizeof(D3D11_FEATURE_DATA_D3D10_X_HARDWARE_OPTIONS));
-    if (features.ComputeShaders_Plus_RawAndStructuredBuffers_Via_Shader_4_x == false) {
-        ThrowWithMessage(mWindowBackend->GetWindowHandle(),
-                         "D3D device doesn't support compute shaders 4.0 or greater.");
-    }
 
     const char* shader_source = R"(
 sampler my_sampler : register(s0);
